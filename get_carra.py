@@ -37,13 +37,11 @@ def retrieve_specific_time(timestamp:str, hl: list[str], vbs: list[str],
     return grib_file
 
 def retrieve_month(vbs: list[str], height_levels: list[int], product_type: str,
-                   yrmonth:str, days: list[int]):
+                   yrmonth:str, days: list[int], hr_list: list[int]):
     grib_file = tempfile.mktemp() + ".grib"
-    print("grib_file:", grib_file)
     dt_obj = datetime.strptime(yrmonth, "%Y-%m")
     yr = dt_obj.year
     mt = dt_obj.month
-    hr_list = [12] if product_type == "forecast" else [15, 18]
     input_dict = {
         'domain':       'west_domain',
         'variable':     vbs,
@@ -155,16 +153,15 @@ for date in timestamp_location.keys():
         next_day = dt_obj.strftime(fmt)
         yr_month.add(next_day[:7])
 
-hr_list = [12] if product_type == "forecast" else [15, 18]
+hr_list = [12] if product_type == "forecast" else [0, 3, 6, 9, 12, 15, 18, 21]
 
 for month in yr_month:
-    timestamps = [int(d[8:10]) for d in timestamp_location.keys() if d[:7] == month]
-    grib_file = retrieve_month(var_list, height_lev, product_type, month, timestamps)
-    time.sleep(1)
-    res, lat_grid, lon_grid = read_grib(grib_file, var_list, height_lev, timestamps, hr_list)
-    for ts in timestamps:
-        dt_obj = datetime.strptime(date, fmt)
-        dt_next = dt_obj + timedelta(hr=3)
+    days = [int(d[8:10]) for d in timestamp_location.keys() if d[:7] == month]
+    grib_file = retrieve_month(var_list, height_lev, product_type, month, days, hr_list)
+    res, lat_grid, lon_grid = read_grib(grib_file, var_list, height_lev, days, hr_list)
+    for timestamp in timestamp_location.keys():
+        dt_obj = datetime.strptime(timestamp, fmt)
+        dt_next = dt_obj + timedelta(hours=3)
         hr0 = (dt_obj.hour // 3)*3
         day0 = dt_obj.day
         mt0 = dt_obj.month
@@ -173,20 +170,20 @@ for month in yr_month:
         day1 = dt_next.day
         mt1 = dt_obj.strftime("%Y-%m")
         ts0 = datetime(yr0, mt0, day0, hr0, 0, 0)
-        w0 = 1 - ((ts - ts0).seconds)/60/60/3
+        wgt = 1 - ((dt_obj - ts0).seconds)/60/60/3
         ts1 = f"{mt1}-{day1:02d}T{hr1:02d}:00:00"
-        for (lat, lon) in timestamp_location[ts]:
+        for (lat, lon) in timestamp_location[timestamp]:
             val0 = interpolate(lat_grid, lon_grid, lat, lon, res[day0][hr0], var_list)
             val1 = interpolate(lat_grid, lon_grid, lat, lon, res[day1][hr1], var_list)
-            if ts == ts0 or mt0 != mt1:
+            if timestamp == ts0 or mt0 != mt1:
                 values = val0
             else:
                 values = {}
                 for var in var_list:
-                    values[var] = w0*val0[var] + (1 - w0)*val1[var]
+                    values[var] = wgt*val0[var] + (1 - wgt)*val1[var]
             for (kh, h) in enumerate(height_lev):
                 df_row = {}
-                df_row["time"] = ts
+                df_row["time"] = timestamp
                 df_row["lat"] = lat
                 df_row["lon"] = lon
                 df_row["height_level"] = h
