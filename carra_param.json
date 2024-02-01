@@ -1,6 +1,6 @@
 {
   "param": {
-    "product_type": "forecast",
+    "product_type": "analysis",
     "variable": [
       "Wind speed",
       "Wind direction",
@@ -15,8 +15,8 @@
     ],
     "leadtime_hour": "24"
   },
-  "date_location": {
-    "2018-05-02T12:00:00": [
+  "timestamp_location": {
+    "2018-05-02T16:30:00": [
       [64.1466, -21.9426],
       [64.9631, -19.0208],
       [65.6829, -18.1059]
