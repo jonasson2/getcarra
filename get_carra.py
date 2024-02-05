@@ -3,41 +3,21 @@ import numpy as np, pygrib, datetime, json, pandas as pd, time, cdsapi
 import tempfile, os, sys
 from datetime import datetime, timedelta
 
-# def retrieve_specific_time(timestamp:str, hl: list[str], vbs: list[str],
-#                            product_type: str):
-#     grib_file = tempfile.mktemp() + ".grib"
-#     print("grib_file:", grib_file)
-#     dt_obj = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S")
-#     yr = dt_obj.year
-#     mt = dt_obj.month
-#     day = dt_obj.day
-#     hr = dt_obj.hour
-#     input_dict = {
-#         'domain':       'west_domain',
-#         'variable':     vbs,
-#         'height_level': hl,
-#         'product_type': product_type,
-#         'time':         hr,
-#         'year':         yr,
-#         'month':        mt,
-#         'day':          day,
-#         'format':       'grib',
-#         'grid':         [0.04180602, 0.01826484],
-#         'area':         [66.6, -24.6, 63.3, -13.4]
-#     }
-#     if product_type == 'forecast':
-#         input_dict.update({'leadtime_hour': '24'})
-#     cdsapi.Client().retrieve('reanalysis-carra-height-levels', input_dict, grib_file)
-#     running = True
-#     while running:
-#         time.sleep(1)
-#         print("Running>>>>")
-#         running = not os.path.exists(grib_file)
-#     print("Out of while loop")
-#     return grib_file
 
 def retrieve_month(vbs: list[str], height_levels: list[int], product_type: str,
-                   yrmonth:str, days: list[int], hr_list: list[int]):
+                   yrmonth: str, days: list[int], hr_list: list[int]) -> str:
+    """
+    Downloads data from CARRA into the file grib_file. Returns a string with the
+    file-name to pass down the process.
+
+    :param vbs: A list of variables, e.g. ["Pressure", "Temperature"]
+    :param height_levels: A list of height levels to get analysis/forecast, e.g. [15, 100]
+    :param product_type: 'forecast'/'analysis'
+    :param yrmonth: String of form "yyyy-mm" indicating month to retrieve data for
+    :param days: List of days to get forecast/analysis for, e.g. [1, 3, 6]
+    :param hr_list: List of hours (modulo 3) in which we fetch analysis/forecast for, e.g. [9, 12, 15]
+    :return: name of .grib file within which data is stored
+    """
     grib_file = tempfile.mktemp() + ".grib"
     dt_obj = datetime.strptime(yrmonth, "%Y-%m")
     yr = dt_obj.year
@@ -66,22 +46,49 @@ def retrieve_month(vbs: list[str], height_levels: list[int], product_type: str,
     print("Out of while loop")
     return grib_file
 
-def date_format():
+
+def date_format() -> str:
+    # Returns string with format for date strings.
+    # Arguable: More appropriate as a constant
     return "%Y-%m-%dT%H:%M:%S"
 
-def add3hrs(date):
+
+def add3hrs(date: str):
+    """
+    :param date: date-like string of format "%Y-%m-%dT%H:%M:%S",
+    :return: date-like string of same format, 3 hours later
+    """
     fmt = date_format()
     dt_obj = datetime.strptime(date, fmt) + timedelta(hours=3)
     return dt_obj.strftime(fmt)
 
-def grib_latlon(grib_file):
+
+def grib_latlon(grib_file: str) -> (np.ndarray, np.ndarray):
+    """
+    :param grib_file: file name of .grib file containing forecasts/analysis
+    :return: Arrays of latitudes and longitudes from .grib file
+    """
     with pygrib.open(grib_file) as grb:
         message = grb[1]
         (lat, lon) = message.latlons()
-    return (np.flipud(lat), lon - 360)
+    return np.flipud(lat), lon - 360
+
 
 def read_grib(grib_file, vbs: list[str], height_levels: list[int],
-              days: list[int], hr_list: list[int]):
+              days: list[int], hr_list: list[int]) -> (dict[any], np.ndarray, np.ndarray):
+    """
+    Goes through a .grib file and picks out data relevant to parameters.
+    :param grib_file: Name of .grib
+    :param vbs: List of variables, e.g. ["Temperature", "Pressure"]
+    :param height_levels: List of height levels, e.g. [15, 100]
+    :param days: List of days to pick data from, e.g. [1, 5, 7]
+    :param hr_list: List of hours (modulo 3) to retrieve forecast/analysis from, e.g. [3,6,9]
+    :return: (a dictionary with keys dictionary[day][hour][variable] and values are arrays of 3 dimensions
+             one of whom is height level, the latter two aligning with arrays of latitudes and containing
+             forecast or analysis of variable in kay at day and hour,
+             latitude array,
+             longitude array)
+    """
     (lat_grid, lon_grid) = grib_latlon(grib_file)
     (nlat, nlon) = lat_grid.shape
     nheight = len(height_levels)
@@ -104,9 +111,21 @@ def read_grib(grib_file, vbs: list[str], height_levels: list[int],
         print("Successful run of read_grib")
     return results, lat_grid, lon_grid
 
-def interpolate(lat_grid, lon_grid, lat, lon, res, variable_list):
-    # Returns a dictionary with variables as keys and numpy vectors
-    # each of length nheights as values.
+
+def interpolate(lat_grid: np.ndarray, lon_grid: np.ndarray, lat: float, lon: float,
+                res: dict[any], variable_list: list[str]) -> dict[np.ndarray]:
+    """
+
+    :param lat_grid: array of latitudes
+    :param lon_grid: array of longitudes
+    :param lat: latitude of position we wish to interpolate on
+    :param lon: longitude of                -||-
+    :param res: Results from grib file, refer to function read_grib
+    :param variable_list: A list of variables to interpolate, e.g. ["Temperature", ...]
+    :return: a dictionary, key: variable interpolated, value: array of interpolations
+             w/ indices corresponding to height levels
+    """
+
     distances = np.sqrt((lat_grid - lat)**2 +
                         np.cos(np.radians(lat_grid))*(lon_grid - lon)**2)
     four_closest_indices = np.argsort(distances, axis=None)[:4]
@@ -129,14 +148,26 @@ def interpolate(lat_grid, lon_grid, lat, lon, res, variable_list):
     result = {v: w@values[v] for v in variable_list}
     return result
 
-def get_carra_param(file_path):
+
+def get_carra_param(file_path: str) -> (dict[str, any], dict[str, any]):
+    """
+    :param file_path: file-path to .json file containing parameters for the process
+    :return: A dictionary of said parameters and values, And a dictionary wherein keys
+             are strings of format date_format() and values are lists of positions for
+             which we wish to interpolate analysis/forecasts on
+    """
     with open(file_path, 'r') as file:
         entry = json.load(file)
         carra_dict = entry["param"]
         timestamp_location = entry["timestamp_location"]
     return carra_dict, timestamp_location
 
-def construct_year_month_set(timestamp_location):
+
+def construct_year_month_set(timestamp_location: dict[str, any]) -> set[str]:
+    """
+    :param timestamp_location: A dictionary of which we use the keys: date-like strings of format date_format()
+    :return: A set of unique timestamps "yyyy-mm" for which carra data is retrievable
+    """
     # Create set of year-month for which to retrieve data
     yr_month = set()
     fmt = date_format()
@@ -150,7 +181,17 @@ def construct_year_month_set(timestamp_location):
             yr_month.add(next_day[:7])
     return yr_month
 
-def get_month(df, carra_dict, timestamp_location, yr_month):
+
+def get_month(df: pd.DataFrame, carra_dict: dict[str, any],
+              timestamp_location: dict[str, any], yr_month: str):
+    """
+    Retrieves data for a specific month and appends it to a dataframe for further utilization
+    :param df: a pandas dataframe containing data up to this point
+    :param carra_dict: A dictionary of parameters for carra retrieval
+    :param timestamp_location: A dictionary w/ keys date_format() and values are lists of locations
+    :param yr_month: the month for which we want to retrieve the data
+    :return: df with added data for the month in questions
+    """
     # Gets one month from Carra and adds the retrieved info to the data frame df
     fmt = date_format()
     var_list = carra_dict["variable"]
