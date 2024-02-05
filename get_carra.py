@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np, pygrib, datetime, json, pandas as pd, time, cdsapi
-import tempfile, os
+import tempfile, os, sys
 from datetime import datetime, timedelta
 
 # def retrieve_specific_time(timestamp:str, hl: list[str], vbs: list[str],
@@ -193,16 +193,16 @@ def get_month(df, carra_dict, timestamp_location, yr_month):
                 df = pd.concat([df, pd.DataFrame([df_row])], ignore_index=True, axis=0)
         return df
 
-json_file = 'carra_param.json'
+assert len(sys.argv) >= 2, "Json file must be specified on command line"
+json_file = sys.argv[1]
 carra_dict, timestamp_location = get_carra_param(json_file)
 df = pd.DataFrame()
 yr_month_set = construct_year_month_set(timestamp_location)
 for yr_month in yr_month_set:
     df = get_month(df, carra_dict, timestamp_location, yr_month)
 
-filename = "prufa.feather"
+filename = carra_dict["feather_file"]
 df.to_feather(filename)
-
 frame = pd.read_feather(filename)
 pd.set_option("display.max_columns", None)
 pd.set_option("display.expand_frame_repr", None)
