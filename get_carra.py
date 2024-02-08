@@ -158,6 +158,8 @@ def get_carra_param(file_path: str) -> (dict[str, any], dict[str, any]):
     """
     with open(file_path, 'r') as file:
         entry = json.load(file)
+        if type(entry) == str:
+            entry = json.loads(entry)  # Magic trick from BGS
         carra_dict = entry["param"]
         timestamp_location = entry["timestamp_location"]
     return carra_dict, timestamp_location
@@ -181,6 +183,9 @@ def construct_year_month_set(timestamp_location: dict[str, any]) -> set[str]:
             yr_month.add(next_day[:7])
     return yr_month
 
+def select_timestamps_in_yr_month(timestamp_location, yr_month):
+    selected = {ts: val for (ts,val) in timestamp_location.items() if ts[:7]==yr_month}
+    return selected
 
 def get_month(df: pd.DataFrame, carra_dict: dict[str, any],
               timestamp_location: dict[str, any], yr_month: str):
@@ -201,7 +206,8 @@ def get_month(df: pd.DataFrame, carra_dict: dict[str, any],
     days = [int(d[8:10]) for d in timestamp_location.keys() if d[:7] == yr_month]
     grib_file = retrieve_month(var_list, height_lev, product_type, yr_month, days, hr_list)
     res, lat_grid, lon_grid = read_grib(grib_file, var_list, height_lev, days, hr_list)
-    for timestamp in timestamp_location.keys():
+    timestamps_of_month = select_timestamps_in_yr_month(timestamp_location, yr_month)
+    for timestamp in timestamps_of_month.keys():
         dt_obj = datetime.strptime(timestamp, fmt)
         dt_next = dt_obj + timedelta(hours=3)
         hr0 = (dt_obj.hour // 3)*3
