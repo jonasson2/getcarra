@@ -225,10 +225,10 @@ def get_month(df: pd.DataFrame, carra_dict: dict[str, any],
         wgt = 1 - ((dt_obj - ts0).seconds)/60/60/3
         for (lat, lon) in timestamp_location[timestamp]:
             val0 = interpolate(lat_grid, lon_grid, lat, lon, res[day0][hr0], var_list)
-            val1 = interpolate(lat_grid, lon_grid, lat, lon, res[day1][hr1], var_list)
             if whole_3_hours:
                 values = val0
             else:
+                val1 = interpolate(lat_grid, lon_grid, lat, lon, res[day1][hr1], var_list)
                 values = {}
                 for var in var_list:
                     values[var] = wgt*val0[var] + (1 - wgt)*val1[var]
