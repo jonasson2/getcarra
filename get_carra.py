@@ -37,6 +37,7 @@ def retrieve_month(vbs: list[str], height_levels: list[int], product_type: str,
     }
     if product_type == 'forecast':
         input_dict.update({'leadtime_hour': '24'})
+    print(input_dict)
     cdsapi.Client().retrieve('reanalysis-carra-height-levels', input_dict, grib_file)
     running = True
     while running:
@@ -211,19 +212,21 @@ def get_month(df: pd.DataFrame, carra_dict: dict[str, any],
         dt_obj = datetime.strptime(timestamp, fmt)
         dt_next = dt_obj + timedelta(hours=3)
         hr0 = (dt_obj.hour // 3)*3
+        min0 = (dt_obj.minute)
         day0 = dt_obj.day
         mt0 = dt_obj.month
+        mt1 = dt_next.month
         yr0 = dt_obj.year
-        hr1 = (dt_next.hour // 3)*3
-        day1 = dt_next.day
-        mt1 = dt_obj.strftime("%Y-%m")
+        whole_3_hours = hr0 % 3 == 0 and min0 == 0 or mt0 != mt1
+        if not whole_3_hours:
+            hr1 = (dt_next.hour // 3)*3
+            day1 = dt_next.day
         ts0 = datetime(yr0, mt0, day0, hr0, 0, 0)
         wgt = 1 - ((dt_obj - ts0).seconds)/60/60/3
-        ts1 = f"{mt1}-{day1:02d}T{hr1:02d}:00:00"
         for (lat, lon) in timestamp_location[timestamp]:
             val0 = interpolate(lat_grid, lon_grid, lat, lon, res[day0][hr0], var_list)
             val1 = interpolate(lat_grid, lon_grid, lat, lon, res[day1][hr1], var_list)
-            if timestamp == ts0 or mt0 != mt1:
+            if whole_3_hours:
                 values = val0
             else:
                 values = {}
