@@ -241,7 +241,9 @@ def get_month(df: pd.DataFrame, carra_dict: dict[str, any],
                 for v in var_list:
                     df_row[v] = values[v][kh]
                 df = pd.concat([df, pd.DataFrame([df_row])], ignore_index=True, axis=0)
-        return df
+
+    os.remove(grib_file)
+    return df
 
 assert len(sys.argv) >= 2, "Json file must be specified on command line"
 json_file = sys.argv[1]
