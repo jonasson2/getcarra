@@ -247,7 +247,7 @@ assert len(sys.argv) >= 2, "Json file must be specified on command line"
 json_file = sys.argv[1]
 carra_dict, timestamp_location = get_carra_param(json_file)
 df = pd.DataFrame()
-yr_month_set = construct_year_month_set(timestamp_location)
+yr_month_set = sorted(list(construct_year_month_set(timestamp_location)))
 for yr_month in yr_month_set:
     df = get_month(df, carra_dict, timestamp_location, yr_month)
 
