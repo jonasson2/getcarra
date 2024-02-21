@@ -3,6 +3,7 @@ import numpy as np, pygrib, datetime, json, pandas as pd, time, cdsapi
 import tempfile, os, sys
 from datetime import datetime, timedelta
 
+from tqdm import tqdm
 
 def retrieve_month(vbs: list[str], height_levels: list[int], product_type: str,
                    yrmonth: str, days: list[int], hr_list: list[int]) -> str:
@@ -234,6 +235,7 @@ def get_month(df: pd.DataFrame, carra_dict: dict[str, any],
                     values[var] = wgt*val0[var] + (1 - wgt)*val1[var]
             for (kh, h) in enumerate(height_lev):
                 df_row = {}
+                df_row["yr_month"] = timestamp[:7]
                 df_row["time"] = timestamp
                 df_row["lat"] = lat
                 df_row["lon"] = lon
@@ -248,10 +250,17 @@ def get_month(df: pd.DataFrame, carra_dict: dict[str, any],
 assert len(sys.argv) >= 2, "Json file must be specified on command line"
 json_file = sys.argv[1]
 carra_dict, timestamp_location = get_carra_param(json_file)
+if len(sys.argv) > 2:
+    df = pd.read_feather(sys.argv[2])
+else:
 df = pd.DataFrame()
-yr_month_set = sorted(list(construct_year_month_set(timestamp_location)))
-for yr_month in yr_month_set:
+yr_month_set = construct_year_month_set(timestamp_location)
+df['yr_month'] = df.time.str[:7]
+for yr_month in tqdm(yr_month_set, total = len(yr_month_set)):
+    if any(df.yr_month == yr_month):
+        continue
     df = get_month(df, carra_dict, timestamp_location, yr_month)
+    df.to_feather(sys.argv[2])
 
 filename = carra_dict["feather_file"]
 df.to_feather(filename)
