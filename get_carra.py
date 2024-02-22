@@ -204,11 +204,23 @@ def get_month(df: pd.DataFrame, carra_dict: dict[str, any],
     var_list = carra_dict["variable"]
     height_lev = carra_dict["height_levels"]
     product_type = carra_dict["product_type"]
-    hr_list = [12] if product_type == "forecast" else [0, 3, 6, 9, 12, 15, 18, 21]
-    days = [int(d[8:10]) for d in timestamp_location.keys() if d[:7] == yr_month]
-    grib_file = retrieve_month(var_list, height_lev, product_type, yr_month, days, hr_list)
-    res, lat_grid, lon_grid = read_grib(grib_file, var_list, height_lev, days, hr_list)
+    days = set(int(d[8:10]) for d in timestamp_location.keys() if d[:7] == yr_month)
     timestamps_of_month = select_timestamps_in_yr_month(timestamp_location, yr_month)
+    for timestamp in timestamps_of_month.keys():
+        dt_obj = datetime.strptime(timestamp, fmt)
+        dt_next = dt_obj + timedelta(hours=3)
+        hr0 = (dt_obj.hour // 3)*3
+        day0 = dt_obj.day
+        if hr0 == 21: # Add next day unless last day of month
+            dt_next = dt_obj + timedelta(hours=24)
+            if dt_obj.month == dt_next.month:
+                days.add(day0 + 1)
+    days = sorted(list(days))
+    hr_list = [12] if product_type == "forecast" else [0, 3, 6, 9, 12, 15, 18, 21]
+    grib_file = retrieve_month(var_list, height_lev, product_type, yr_month, days, hr_list)
+    print("About to read grib")
+    res, lat_grid, lon_grid = read_grib(grib_file, var_list, height_lev, days, hr_list)
+    print("Finished reading grib")
     for timestamp in timestamps_of_month.keys():
         dt_obj = datetime.strptime(timestamp, fmt)
         dt_next = dt_obj + timedelta(hours=3)
@@ -229,6 +241,7 @@ def get_month(df: pd.DataFrame, carra_dict: dict[str, any],
             if whole_3_hours:
                 values = val0
             else:
+                print(res.keys(), day0, hr0, day1, hr1, timestamp)
                 val1 = interpolate(lat_grid, lon_grid, lat, lon, res[day1][hr1], var_list)
                 values = {}
                 for var in var_list:
@@ -250,18 +263,17 @@ def get_month(df: pd.DataFrame, carra_dict: dict[str, any],
 assert len(sys.argv) >= 2, "Json file must be specified on command line"
 json_file = sys.argv[1]
 carra_dict, timestamp_location = get_carra_param(json_file)
-if len(sys.argv) > 2:
-    df = pd.read_feather(sys.argv[2])
-    df['yr_month'] = df.time.str[:7]
-else:
-    df = pd.DataFrame()
+#if len(sys.argv) > 2:
+#    df = pd.read_feather(sys.argv[2])
+#else:
+df = pd.DataFrame()
 yr_month_set = sorted(list(construct_year_month_set(timestamp_location)))
-
+#df['yr_month'] = df.time.str[:7]
 for yr_month in tqdm(yr_month_set, total = len(yr_month_set)):
     if len(df) > 0 and any(df.yr_month == yr_month):
         continue
     df = get_month(df, carra_dict, timestamp_location, yr_month)
-    df.to_feather(sys.argv[2])
+    #df.to_feather(sys.argv[2])
 
 filename = carra_dict["feather_file"]
 df.to_feather(filename)
