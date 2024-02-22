@@ -252,12 +252,13 @@ json_file = sys.argv[1]
 carra_dict, timestamp_location = get_carra_param(json_file)
 if len(sys.argv) > 2:
     df = pd.read_feather(sys.argv[2])
+    df['yr_month'] = df.time.str[:7]
 else:
-df = pd.DataFrame()
-yr_month_set = construct_year_month_set(timestamp_location)
-df['yr_month'] = df.time.str[:7]
+    df = pd.DataFrame()
+yr_month_set = sorted(list(construct_year_month_set(timestamp_location)))
+
 for yr_month in tqdm(yr_month_set, total = len(yr_month_set)):
-    if any(df.yr_month == yr_month):
+    if len(df) > 0 and any(df.yr_month == yr_month):
         continue
     df = get_month(df, carra_dict, timestamp_location, yr_month)
     df.to_feather(sys.argv[2])
