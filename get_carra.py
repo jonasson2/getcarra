@@ -268,11 +268,7 @@ carra_dict, timestamp_location = get_carra_param(json_file)
 #    df = pd.read_feather(sys.argv[2])
 #else:
 df = pd.DataFrame()
-<<<<<<< HEAD
-yr_month_set = construct_year_month_set(timestamp_location)
-=======
 yr_month_set = sorted(list(construct_year_month_set(timestamp_location)))
->>>>>>> origin/main
 #df['yr_month'] = df.time.str[:7]
 for yr_month in tqdm(yr_month_set, total = len(yr_month_set)):
     if len(df) > 0 and any(df.yr_month == yr_month):
