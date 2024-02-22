@@ -205,7 +205,7 @@ def get_month(df: pd.DataFrame, carra_dict: dict[str, any],
     height_lev = carra_dict["height_levels"]
     product_type = carra_dict["product_type"]
     hr_list = [12] if product_type == "forecast" else [0, 3, 6, 9, 12, 15, 18, 21]
-    days = [int(d[8:10]) for d in timestamp_location.keys() if d[:7] == yr_month]
+    days = list(set(int(d[8:10]) for d in timestamp_location.keys() if d[:7] == yr_month))
     grib_file = retrieve_month(var_list, height_lev, product_type, yr_month, days, hr_list)
     print("About to read grib")
     res, lat_grid, lon_grid = read_grib(grib_file, var_list, height_lev, days, hr_list)
